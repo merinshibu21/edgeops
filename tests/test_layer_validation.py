@@ -43,11 +43,10 @@ def test_kernel_bbappend_references_fragment():
     assert "edgeops.cfg" in bb
 
 
-def test_custom_motd_exists_and_non_empty():
-    motd_files = list((REPO_ROOT / "recipes-core").rglob("motd"))
-    assert len(motd_files) == 1
-    motd = motd_files[0].read_text(encoding="utf-8")
-    assert len(motd.strip()) > 5
+def test_custom_motd_configured_in_base_files():
+    bb = (REPO_ROOT / "recipes-core/base-files/base-files_%.bbappend").read_text(encoding="utf-8")
+    assert "${sysconfdir}/motd" in bb
+    assert "EdgeOps" in bb
 
 
 def test_all_tracked_source_files_under_200_lines():
