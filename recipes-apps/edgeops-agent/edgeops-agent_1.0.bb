@@ -12,6 +12,7 @@ SRC_URI = " \
     file://src/collectors.cpp \
     file://src/storage.hpp \
     file://src/storage.cpp \
+    file://src/storage_alarms.cpp \
     file://src/systemd_mgr.hpp \
     file://src/systemd_mgr.cpp \
     file://src/http_server.hpp \
@@ -31,6 +32,7 @@ do_compile() {
         ${S}/src/main.cpp \
         ${S}/src/collectors.cpp \
         ${S}/src/storage.cpp \
+        ${S}/src/storage_alarms.cpp \
         ${S}/src/systemd_mgr.cpp \
         ${S}/src/http_server.cpp \
         -lsqlite3 -o ${B}/edgeops-agent
