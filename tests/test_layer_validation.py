@@ -56,6 +56,29 @@ def test_all_tracked_source_files_under_200_lines():
             lines = len(path.read_text(encoding="utf-8").splitlines())
             assert lines <= MAX_LINES, f"{path} has {lines} lines (limit {MAX_LINES})"
 
+# --- Positive Tests (Assignment 4: Systemd & Config) ---
+def test_systemd_service_unit_valid():
+    svc = (REPO_ROOT / "recipes-apps/edgeops-agent/files/edgeops-agent.service").read_text(encoding="utf-8")
+    assert "ExecStart=/usr/bin/edgeops-agent" in svc
+    assert "Restart=on-failure" in svc or "Restart=always" in svc
+    assert "WantedBy=multi-user.target" in svc
+
+
+def test_edgeops_conf_has_thresholds_and_services():
+    conf = (REPO_ROOT / "recipes-apps/edgeops-agent/files/edgeops.conf").read_text(encoding="utf-8")
+    for key in ("port", "cpu_threshold", "mem_threshold", "disk_threshold", "services"):
+        assert key in conf
+
+
+def test_agent_recipe_enables_systemd_and_installs_conf():
+    bb = (REPO_ROOT / "recipes-apps/edgeops-agent/edgeops-agent_1.0.bb").read_text(encoding="utf-8")
+
+    assert "inherit systemd" in bb
+    assert 'SYSTEMD_SERVICE:${PN} = "edgeops-agent.service data.mount"' in bb
+    assert 'SYSTEMD_AUTO_ENABLE:${PN} = "enable"' in bb
+    assert "${sysconfdir}/edgeops/edgeops.conf" in bb
+    assert "file://data.mount" in bb
+
 
 # --- Negative Tests ---
 def test_reject_layer_conf_missing_scarthgap():
@@ -74,6 +97,20 @@ def test_no_hardcoded_secrets_in_repo():
         if path.is_file() and ".git" not in path.parts:
             text = path.read_text(encoding="utf-8", errors="ignore")
             assert not secret_pattern.search(text), f"Potential secret in {path}"
+
+def test_agent_service_requires_persistent_data_mount():
+    svc = (REPO_ROOT / "recipes-apps/edgeops-agent/files/edgeops-agent.service").read_text(encoding="utf-8")
+
+    assert "Requires=data.mount" in svc
+    assert "data.mount" in svc.split("After=", 1)[1].splitlines()[0]
+
+
+def test_persistent_data_mount_configured_correctly():
+    mount = (REPO_ROOT / "recipes-apps/edgeops-agent/files/data.mount").read_text(encoding="utf-8")
+
+    assert "What=/dev/disk/by-label/EDGEOPS_DATA" in mount
+    assert "Where=/data" in mount
+    assert "Type=ext4" in mount
 
 
 # --- Boundary Condition Tests ---

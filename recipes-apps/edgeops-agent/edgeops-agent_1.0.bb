@@ -6,6 +6,12 @@ LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/MIT;md5=0835ade698e0bcf8506ecda
 DEPENDS = "sqlite3"
 RDEPENDS:${PN} = "sqlite3"
 
+inherit systemd
+
+SYSTEMD_PACKAGES = "${PN}"
+SYSTEMD_SERVICE:${PN} = "edgeops-agent.service data.mount"
+SYSTEMD_AUTO_ENABLE:${PN} = "enable"
+
 SRC_URI = " \
     file://src/models.hpp \
     file://src/collectors.hpp \
@@ -19,6 +25,9 @@ SRC_URI = " \
     file://src/http_server.cpp \
     file://src/main.cpp \
     file://web/index.html \
+    file://edgeops.conf \
+    file://edgeops-agent.service \
+    file://data.mount \
 "
 
 S = "${WORKDIR}"
@@ -42,10 +51,17 @@ do_install() {
     install -d ${D}${bindir}
     install -m 0755 ${B}/edgeops-agent ${D}${bindir}/edgeops-agent
 
+    install -d ${D}${sysconfdir}/edgeops
+    install -m 0644 ${S}/edgeops.conf ${D}${sysconfdir}/edgeops/edgeops.conf
+
+    install -d ${D}${systemd_system_unitdir}
+    install -m 0644 ${S}/edgeops-agent.service ${D}${systemd_system_unitdir}/edgeops-agent.service
+    install -m 0644 ${S}/data.mount ${D}${systemd_system_unitdir}/data.mount
+
     if ${@bb.utils.contains('PACKAGECONFIG', 'webui', 'true', 'false', d)}; then
         install -d ${D}${datadir}/edgeops/web
         install -m 0644 ${S}/web/index.html ${D}${datadir}/edgeops/web/index.html
     fi
 }
 
-FILES:${PN} += "${datadir}/edgeops/web"
+FILES:${PN} += "${datadir}/edgeops/web ${sysconfdir}/edgeops ${systemd_system_unitdir}"

@@ -1,0 +1,11 @@
+[Unit]
+Description=EdgeOps Persistent Data Disk
+
+[Mount]
+What=/dev/disk/by-label/EDGEOPS_DATA
+Where=/data
+Type=ext4
+Options=defaults
+
+[Install]
+WantedBy=local-fs.target

@@ -1,0 +1,13 @@
+[Unit]
+Description=EdgeOps Embedded Device Management & Diagnostics Agent
+After=network.target systemd-journald.service data.mount
+Requires=data.mount
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/edgeops-agent --config /etc/edgeops/edgeops.conf
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
