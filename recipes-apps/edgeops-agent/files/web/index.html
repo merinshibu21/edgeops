@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>EdgeOps Diagnostics Dashboard</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; margin: 0; padding: 20px; }
+  header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; padding-bottom: 12px; margin-bottom: 20px; }
+  .badge { background: #2563eb; padding: 4px 10px; border-radius: 6px; font-weight: 600; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 20px; }
+  .card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 16px; }
+  h2 { margin-top: 0; font-size: 1.05rem; color: #93c5fd; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #334155; }
+  button { background: #334155; color: #f8fafc; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; margin-right: 4px; }
+  button:hover { background: #475569; }
+  .active { color: #4ade80; font-weight: 600; }
+  .failed { color: #f87171; font-weight: 600; }
+  pre { background: #020617; padding: 12px; border-radius: 6px; max-height: 220px; overflow-y: auto; font-size: 0.8rem; }
+</style>
+</head>
+<body>
+<header>
+  <div><strong>EdgeOps</strong> Embedded Device Management &amp; Diagnostics Unit</div>
+  <div>Version: <span class="badge" id="ver">loading...</span></div>
+</header>
+<div class="grid">
+  <div class="card"><h2>System Overview</h2><p>CPU: <strong id="cpu">-</strong></p><p>RAM: <strong id="mem">-</strong></p><p>Uptime: <strong id="uptime">-</strong></p></div>
+  <div class="card"><h2>Storage</h2><table><thead><tr><th>Mount</th><th>Used %</th><th>Free (MB)</th></tr></thead><tbody id="disks"></tbody></table></div>
+  <div class="card"><h2>Network</h2><table><thead><tr><th>Iface</th><th>State</th><th>RX / TX</th></tr></thead><tbody id="net"></tbody></table></div>
+</div>
+<div class="grid">
+  <div class="card"><h2>Services</h2><table><thead><tr><th>Service</th><th>State</th><th>Actions</th></tr></thead><tbody id="svcs"></tbody></table></div>
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h2>Alarms</h2>
+      <button type="button" onclick="document.getElementById('history-dialog').showModal()">View History</button>
+    </div>
+    <table>
+      <thead><tr><th>Severity</th><th>Source</th><th>Message</th></tr></thead>
+      <tbody id="alarms"></tbody>
+    </table>
+    <dialog id="history-dialog" style="width: min(1000px, 90vw); max-height: 80vh; overflow: auto; border: 1px solid #555; border-radius: 12px; padding: 20px;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h2>Alarm History</h2>
+        <button type="button" onclick="document.getElementById('history-dialog').close()">Close</button>
+      </div>
+      <table>
+        <thead><tr><th>Severity</th><th>Source</th><th>Message</th><th>Status</th><th>Raised</th><th>Recovered</th></tr></thead>
+        <tbody id="alarm-history-modal"></tbody>
+      </table>
+    </dialog>
+  </div>
+</div>
+<div class="card"><h2>System Logs</h2><pre id="logs">Loading...</pre></div>
+<script>
+async function svcAction(n, a) { await fetch(`/api/services/${encodeURIComponent(n)}/${a}`, { method: 'POST' }); refresh(); }
+async function refresh() {
+  try {
+    const [st, al, ah, lg] = await Promise.all([fetch('/api/status').then(r=>r.json()), fetch('/api/alarms').then(r=>r.json()), fetch('/api/alarm-history').then(r=>r.json()), fetch('/api/logs').then(r=>r.json())]);
+    document.getElementById('ver').textContent = st.version;
+    document.getElementById('cpu').textContent = st.cpu_pct.toFixed(1) + '%';
+    document.getElementById('mem').textContent = st.memory.used_pct.toFixed(1) + '%';
+    document.getElementById('uptime').textContent = Math.round(st.uptime_sec) + ' s';
+    document.getElementById('disks').innerHTML = st.disks.map(d => `<tr><td>${d.mount === '/' ? 'Root (/)' : d.mount}</td><td>${d.used_pct.toFixed(1)}%</td><td>${d.free_mb}</td></tr>`).join('');
+    document.getElementById('net').innerHTML = st.network.map(n => `<tr><td>${n.iface}</td><td>${n.operstate}</td><td>${n.rx_bytes} / ${n.tx_bytes}</td></tr>`).join('');
+    document.getElementById('svcs').innerHTML = st.services.map(s => `<tr><td>${s.name}</td><td class="${s.state==='active'?'active':'failed'}">${s.state}</td><td><button onclick="svcAction('${s.name}','start')">Start</button><button onclick="svcAction('${s.name}','stop')">Stop</button><button onclick="svcAction('${s.name}','restart')">Restart</button></td></tr>`).join('');
+    const activeAlarms = al.alarms || [];
+    document.getElementById('alarms').innerHTML = activeAlarms.length
+      ? activeAlarms.map(a => `<tr><td class="failed">${a.severity}</td><td>${a.source}</td><td>${a.message}</td></tr>`).join('')
+      : '<tr><td colspan="3" style="color: #16a34a; text-align: center; padding: 16px; font-weight: 600;">✓ All systems normal — No active alarms detected.</td></tr>';
+    document.getElementById('alarm-history-modal').innerHTML = (ah.alarms||[]).map(a => `<tr><td>${a.severity}</td><td>${a.source}</td><td>${a.message}</td><td>${a.status}</td><td>${new Date(a.ts*1000).toLocaleString()}</td><td>${a.recovered_ts ? new Date(a.recovered_ts*1000).toLocaleString() : '-'}</td></tr>`).join('');
+    document.getElementById('logs').textContent = (lg.entries||[]).join('\n');
+  } catch (e) { console.error(e); }
+}
+refresh(); setInterval(refresh, 3000);
+</script>
+</body>
+</html>
